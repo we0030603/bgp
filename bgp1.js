@@ -155,7 +155,7 @@ javascript:(async () => {
         let price = parseFloat(priceEl.textContent.replace(/,/g, "").trim());
         if (isNaN(price)) throw 0;
         price = Math.floor(price);
-        const qty = Math.max(0.001, Math.ceil(((2000 / 2) / price) * 1000 - 1e-12) / 1000);
+        const qty = Math.max(0.001, Math.ceil(((2030 / 2) / price) * 1000 - 1e-12) / 1000);
         await setValue('//input[@name="op-amount"]', qty);
 
         await clickXpath("//span[text()='Open long']");

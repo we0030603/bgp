@@ -26,18 +26,50 @@ javascript:(async () => {
     }
   };
 
-  // Set value giả lập gõ phím
+  // Set value giả lập gõ phím (an toàn, giống người gõ)
   const setValue = async (xpath, value) => {
-    const el = document.evaluate(xpath, document, null, 9, null).singleNodeValue;
-    if (!el) return;
+    const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    if (!el) {
+      console.error("❌ Không tìm thấy input:", xpath);
+      return;
+    }
     el.focus();
-    el.value = "";
+
+    // Lấy native setter của value (để React/Vue nhận thay đổi)
+    const nativeSetter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
+
+    // Xóa trước khi nhập
+    if (nativeSetter) nativeSetter.call(el, "");
+    else el.value = "";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+
+    // Nhập từng ký tự
     for (let char of value.toString()) {
-      el.value += char;
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+      const current = el.value + char;
+      if (nativeSetter) nativeSetter.call(el, current);
+      else el.value = current;
+
+      // Gửi InputEvent giống người gõ
+      try {
+        el.dispatchEvent(new InputEvent("input", {
+          bubbles: true,
+          composed: true,
+          data: char,
+          inputType: "insertText"
+        }));
+      } catch {
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      // Gửi keyboard event để giống thực tế hơn
+      el.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
+      el.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
+
       await randomSleep(50, 150);
     }
+
     el.dispatchEvent(new Event("change", { bubbles: true }));
+    console.log("⌨️ Gõ:", value, "→", xpath);
   };
 
   // Click an toàn (rê chuột trước khi click)

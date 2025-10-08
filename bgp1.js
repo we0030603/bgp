@@ -109,6 +109,7 @@
   // Chờ element và click an toàn
   const clickXpath = async (xpath, extraDelay = false) => {
     const el = await waitFor(xpath);
+    await randomSleep(800,1200);
     await safeClick(el, extraDelay);
   };
 
@@ -159,6 +160,7 @@
     const openLong = document.evaluate("//div[@class='bit-table-body']//span[normalize-space(text())='Open long']", document, null, 9, null).singleNodeValue;
 
     if (!openLong) {
+      await randomSleep(800,1200);
       await clickXpath("//span[contains(text(),'Positions')]");
       await randomSleep();
 

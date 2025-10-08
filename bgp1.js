@@ -1,4 +1,4 @@
-javascript:(async () => {
+(async () => {
 
   /************** 🔧 HÀM TIỆN ÍCH **************/
 

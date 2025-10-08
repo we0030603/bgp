@@ -34,7 +34,7 @@
       return;
     }
     el.focus();
-
+    await randomSleep(800, 1200);
     // Lấy native setter của value (để React/Vue nhận thay đổi)
     const nativeSetter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value")?.set;
 
@@ -65,7 +65,7 @@
       el.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
 
-      await randomSleep(50, 150);
+      await randomSleep(100, 200);
     }
 
     el.dispatchEvent(new Event("change", { bubbles: true }));

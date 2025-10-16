@@ -265,7 +265,7 @@ while (true) {
   try {
     const zeroBalance = document.evaluate("//span[contains(text(),'Available')]/../span[text()='0.0000 USDT']", document, null, 9, null).singleNodeValue;
     if (zeroBalance) {
-      prompt("DONE ✅");
+      alert("DONE ✅");
     } else {
       const transferBtn = document.evaluate("//span[contains(text(),'Available')]/../../div/button", document, null, 9, null).singleNodeValue;
       if (transferBtn) await safeClick(transferBtn);
@@ -281,7 +281,7 @@ while (true) {
       try {
         await waitFor("//span[contains(text(),'Available')]/../span[text()='0.0000 USDT']", 2000);
         await randomSleep(800, 1500);
-        prompt("DONE ✅");
+        alert("DONE ✅");
       } catch {
         location.reload();
       }

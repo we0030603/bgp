@@ -3,7 +3,7 @@
   /************** 🔧 HÀM TIỆN ÍCH **************/
 /************** Future 20k **************/
   // 🧩 Cấu hình chung
-  const LEVERAGE = 11; // 👈 chỉ cần đổi số này (vd: 13, 55)
+  const LEVERAGE = 52; // 👈 chỉ cần đổi số này (vd: 13, 55)
 
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const randomSleep = (min = 100, max = 800) => sleep(Math.floor(Math.random() * (max - min + 1)) + min);
@@ -168,7 +168,7 @@ while (true) {
     console.log("🔁 (Vòng lặp) Kiểm tra Position history...");
     await clickXpath("//div[text()='Position history']");
     await waitFor("//div[@class='bit-table-body']//tbody");
-    await randomSleep(700,1000);
+    await randomSleep(2000,2100);
 
     const openLong = document.evaluate("(//tr[not(@aria-hidden)]/td[5]/span)[3]", document, null, 9, null).singleNodeValue;
 
@@ -275,6 +275,7 @@ while (true) {
       const confirmBtn = await waitFor("//button[text()='Confirm']");
 
       await safeClick(icon);
+      await randomSleep(800, 1200);
       await safeClick(allBtn);
       await safeClick(confirmBtn);
 

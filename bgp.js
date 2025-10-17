@@ -223,7 +223,7 @@ while (true) {
       }
 
       await waitFor("//span[text()='Flash close']");
-      await clickXpath1("//span[text()='Flash close']"); // chờ 2–3s rồi click
+      await clickXpath("//span[text()='Flash close']"); // chờ 2–3s rồi click
       
       // Theo dõi tối đa 5 giây — nếu Flash close biến mất thì coi là đóng thành công
       let disappeared = false;

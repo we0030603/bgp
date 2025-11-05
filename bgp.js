@@ -1,7 +1,7 @@
 (async () => {
   try {
     /************************* CẤU HÌNH (chỉnh nếu cần) *************************/
-    const minLeverage = 75; // thay đổi nếu cần
+    const minLeverage = 50; // thay đổi nếu cần
     const maxLeverage = 100; // thay đổi nếu cần
     const minVol = 20300; // USDT, khối lượng tối thiểu (ví dụ)
     const maxVol = 22000; // USDT, khối lượng tối đa (ví dụ)

@@ -363,7 +363,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         const totalVol = getTotalVolumeFromTable();
         console.log("📈 Total volume hiện có (USDT):", totalVol);
 
-        if (totalVol >= 20000) {
+        if (totalVol >= minVol) {
           console.log("✅ Đã đạt/ vượt 20000 — dừng script.");
           break;
         }
@@ -445,7 +445,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
             try {
               await waitFor("//span[text()='Editing successful']|//span[text()='Chỉnh sửa thành công']", 5000);
             } catch {}
-            await randomSleep(800, 1200);
+            await randomSleep(300, 500);
           }
         } catch (e) {
           console.error("❌ Lỗi khi set leverage:", e);
@@ -457,7 +457,6 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
           console.log("⌨️ Nhập BTC amount vào input...");
           await waitFor(amountInputXPath);
           await setValue(amountInputXPath, btcAmount.toString());
-          await randomSleep(500, 900);
         } catch (e) {
           console.error("❌ Lỗi nhập amount:", e);
         }
@@ -465,7 +464,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
 
         /*************** PHÂN TÍCH HƯỚNG (LONG / SHORT) ***************/
         console.log("🔎 Phân tích hướng thị trường...");
-        const direction = await analyzeMarketDirectionOnce(15000);
+        const direction = await analyzeMarketDirectionOnce(30000);
         console.log("📡 Kết luận phân tích:", direction);
 
 
@@ -473,10 +472,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         try {
           if (direction === "LONG") {
             console.log("🟢 Mở LONG...");
-            await clickXpath("//span[text()='Open long' or text()='Mở Long' or text()='Open Long']");
+            await clickXpath1("//span[text()='Open long' or text()='Mở Long' or text()='Open Long']");
           } else {
             console.log("🔴 Mở SHORT...");
-            await clickXpath("//span[text()='Open short' or text()='Mở Short' or text()='Open Short']");
+            await clickXpath1("//span[text()='Open short' or text()='Mở Short' or text()='Open Short']");
           }
         } catch (e) {
           console.error("❌ Lỗi khi click Open long/short:", e);
@@ -488,9 +487,9 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
           if (confirmOrFlash && ["Confirm", "Xác nhận"].includes(confirmOrFlash.textContent.trim())) {
             console.log("🟢 Cần Confirm — bật setting trước khi Confirm");
             // bật setting
-            await clickXpath("//p[@id='open-setting']/../../span/input");
-            await randomSleep(500, 1000);
-            await clickXpath("//button[text()='Confirm' or text()='Xác nhận']");
+            await clickXpath1("//p[@id='open-setting']/../../span/input");
+            await randomSleep(200, 500);
+            await clickXpath1("//button[text()='Confirm' or text()='Xác nhận']");
             await waitFor("//span[text()='Flash close' or text()='Đóng nhanh']", 5000);
             console.log("✅ Đã mở lệnh — Flash close hiện");
           } else {
@@ -540,7 +539,9 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         if (transferBtn) await safeClick(transferBtn);
 		await randomSleep(800, 1200);
         const allBtn = await waitFor("//span[text()='All'  or text()='Tất cả']");
+        await randomSleep(800, 1200);
         const icon = await waitFor("//div[text()='Transfer' or text()='Chuyển khoản']/../div/div/div/i");
+        await randomSleep(800, 1200);
         const confirmBtn = await waitFor("//button[text()='Confirm' or text()='Xác nhận']");
 
         await safeClick(icon);

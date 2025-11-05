@@ -551,9 +551,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         try {
           await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 2000);
           await randomSleep(800, 1500);
-          alert("DONE ✅");
+          
         } catch {
         }
+		  alert("DONE ✅");
       }
     } catch (e) {
       console.error("❌ Lỗi bước KẾT THÚC:", e);

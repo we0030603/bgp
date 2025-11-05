@@ -363,6 +363,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         const totalVol = getTotalVolumeFromTable();
         console.log("📈 Total volume hiện có (USDT):", totalVol);
 
+        if (totalVol >= 20000) {
+          console.log("✅ Đã đạt/ vượt 20000 — dừng script.");
+          break;
+        }
         if (totalVol >= chosenVol) {
           console.log("✅ Đã đạt/ vượt chosenVol — dừng script.");
           break;

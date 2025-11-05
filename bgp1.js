@@ -1,10 +1,10 @@
 (async () => {
   try {
     /************************* CẤU HÌNH (chỉnh nếu cần) *************************/
-    const minLeverage = 75; // thay đổi nếu cần
+    const minLeverage = 50; // thay đổi nếu cần
     const maxLeverage = 100; // thay đổi nếu cần
-    const minVol = 20000; // USDT, khối lượng tối thiểu (ví dụ)
-    const maxVol = 21000; // USDT, khối lượng tối đa (ví dụ)
+    const minVol = 41000; // USDT, khối lượng tối thiểu (ví dụ)
+    const maxVol = 41500; // USDT, khối lượng tối đa (ví dụ)
     const feeBuffer = 0.936; // truyền vào calc nếu muốn
     const balanceXPath = "//span[contains(text(),'Available')]/../span[contains(text(),' USDT')]";
     const priceXPath = "//div[contains(@class,'CurrentPriceDisplay')]/div/span";
@@ -363,6 +363,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         const totalVol = getTotalVolumeFromTable();
         console.log("📈 Total volume hiện có (USDT):", totalVol);
 
+        if (totalVol >= 20000) {
+          console.log("✅ Đã đạt/ vượt 20000 — dừng script.");
+          break;
+        }
         if (totalVol >= chosenVol) {
           console.log("✅ Đã đạt/ vượt chosenVol — dừng script.");
           break;
@@ -461,15 +465,9 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
 
         /*************** PHÂN TÍCH HƯỚNG (LONG / SHORT) ***************/
         console.log("🔎 Phân tích hướng thị trường...");
-        const direction = await analyzeMarketDirectionOnce(3000);
+        const direction = await analyzeMarketDirectionOnce(15000);
         console.log("📡 Kết luận phân tích:", direction);
 
-        if (direction === "NEUTRAL") {
-          console.log("⚠️ NEUTRAL — bỏ qua vòng này, chờ chút rồi tiếp tục.");
-          const delayMs = randInt(5000, 8000);
-          await sleep(delayMs);
-          continue; // sang vòng kế tiếp
-        }
 
         // click Open long / short
         try {
@@ -553,9 +551,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         try {
           await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 2000);
           await randomSleep(800, 1500);
-          alert("DONE ✅");
+          
         } catch {
         }
+		  alert("DONE ✅");
       }
     } catch (e) {
       console.error("❌ Lỗi bước KẾT THÚC:", e);

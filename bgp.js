@@ -139,7 +139,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
         movementY: Math.floor(Math.random() * 5),
         view: window
       }));
-      await randomSleep(30, 120);
+      await randomSleep(20, 40);
     }
   };
 
@@ -173,7 +173,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       }
       el.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
-      await randomSleep(100, 200);
+      await randomSleep(50, 120);
     }
 
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -183,7 +183,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
   // Click an toàn (rê chuột trước khi click)
   const safeClick = async (el, extraDelay = false) => {
     if (!el) return;
-    await randomSleep(200, 600);
+    await randomSleep(100, 250);
     if (extraDelay) await randomSleep(2000, 3000);
     await simulateMouseMove(el, 6);
     const rect = el.getBoundingClientRect();
@@ -222,7 +222,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
   };
     const clickXpath1 = async (xpath, extraDelay = false) => {
     const el1 = await waitFor(xpath);
-    await randomSleep(100, 200);
+    await randomSleep(50, 100);
     await safeClick(el1);
   };
   
@@ -556,10 +556,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         try {
           if (direction === "LONG") {
             console.log("🟢 Mở LONG...");
-            await clickXpath("//span[text()='Open long' or text()='Mở Long' or text()='Open Long']");
+            await clickXpath1("//span[text()='Open long' or text()='Mở Long' or text()='Open Long']");
           } else {
             console.log("🔴 Mở SHORT...");
-            await clickXpath("//span[text()='Open short' or text()='Mở Short' or text()='Open Short']");
+            await clickXpath1("//span[text()='Open short' or text()='Mở Short' or text()='Open Short']");
           }
         } catch (e) {
           console.error("❌ Lỗi khi click Open long/short:", e);
@@ -632,11 +632,12 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         await safeClick(confirmBtn);
 
         try {
-          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 2000);
+          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 5000);
           await randomSleep(800, 1500);
           
         } catch {
         }
+		  await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 3000);
 		  alert("DONE ✅");
       }
     } catch (e) {

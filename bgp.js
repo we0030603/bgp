@@ -26,6 +26,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       return null;
     }
   }
+	
   function parseNumberText(s) {
     if (s == null) return NaN;
     return parseFloat(String(s).replace(/,/g, '').replace(/[^\d.\-]/g, '').trim());

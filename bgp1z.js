@@ -3,8 +3,8 @@
     /************************* CẤU HÌNH (chỉnh nếu cần) *************************/
     const minLeverage = 50; // thay đổi nếu cần
     const maxLeverage = 100; // thay đổi nếu cần
-    const minVol = 41000; // USDT, khối lượng tối thiểu (ví dụ)
-    const maxVol = 41500; // USDT, khối lượng tối đa (ví dụ)
+    const minVol = 20300; // USDT, khối lượng tối thiểu (ví dụ)
+    const maxVol = 21500; // USDT, khối lượng tối đa (ví dụ)
     const feeBuffer = 0.936; // truyền vào calc nếu muốn
     const balanceXPath = "//span[contains(text(),'Available')]/../span[contains(text(),' USDT')]";
     const priceXPath = "//div[contains(@class,'CurrentPriceDisplay')]/div/span";
@@ -251,12 +251,13 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
-    // helper: phân tích hướng thị trường 1 lần — trả về "LONG" | "SHORT" | "NEUTRAL"
-    // logic: lấy 5 mẫu liên tiếp cách nhau ~150ms, so sánh xu hướng như bạn mô tả
+
     // helper: phân tích hướng thị trường 1 lần — trả về "LONG" | "SHORT" | "NEUTRAL"
 async function analyzeMarketDirectionOnce(timeout = 15000) {
   const buyXPath = '(//li[contains(@class, "contentTradeBuy")])[1]';
   const sellXPath = '(//li[contains(@class, "contentTradeSell")])[last()]';
+  const buyVolXPath = '(//li[contains(@class, "contentTradeBuy")]/../li[3])[1]';
+  const sellVolXPath = '(//li[contains(@class, "contentTradeSell")]/../li[3])[last()]';
 
   function getXPathNumber(xpath) {
     try {
@@ -270,20 +271,132 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
     }
   }
 
-  return new Promise((resolve) => {
-    console.log("🔍 Bắt đầu phân tích hướng thị trường...");
-    const buyPrices = [];
-    const sellPrices = [];
-    let lastBuy = getXPathNumber(buyXPath);
-    let lastSell = getXPathNumber(sellXPath);
-    const start = Date.now();
+  // EMA smoothing cho volume
+  function ema(prevEma, current, alpha = 0.5) {
+    if (prevEma === null || prevEma === undefined) return current;
+    return alpha * current + (1 - alpha) * prevEma;
+  }
 
+  const start = performance.now();
+  let lastBuy = getXPathNumber(buyXPath);
+  let lastSell = getXPathNumber(sellXPath);
+  let lastBuyVol = getXPathNumber(buyVolXPath);
+  let lastSellVol = getXPathNumber(sellVolXPath);
+  let emaBuyVol = lastBuyVol;
+  let emaSellVol = lastSellVol;
+
+  const buyPrices = [], sellPrices = [], buyVols = [], sellVols = [], spreads = [], timestamps = [];
+
+  return new Promise((resolve) => {
+    console.log("🔍 Bắt đầu phân tích hướng thị trường — bản Pro nhẹ");
     const interval = setInterval(() => {
       const newBuy = getXPathNumber(buyXPath);
       const newSell = getXPathNumber(sellXPath);
-      const now = Date.now();
+      const buyVol = getXPathNumber(buyVolXPath);
+      const sellVol = getXPathNumber(sellVolXPath);
+      const now = performance.now();
 
-      // kiểm tra timeout
+      if (!newBuy || !newSell || !buyVol || !sellVol) return;
+
+      const spread = newSell - newBuy;
+      const priceChanged = newBuy !== lastBuy || newSell !== lastSell;
+      const volumeChanged = buyVol !== lastBuyVol || sellVol !== lastSellVol;
+
+      if (priceChanged || volumeChanged) {
+        emaBuyVol = ema(emaBuyVol, buyVol);
+        emaSellVol = ema(emaSellVol, sellVol);
+
+        buyPrices.push(newBuy);
+        sellPrices.push(newSell);
+        buyVols.push(emaBuyVol);
+        sellVols.push(emaSellVol);
+        spreads.push(spread);
+        timestamps.push(now);
+
+        if (buyPrices.length > 6) {
+          buyPrices.shift();
+          sellPrices.shift();
+          buyVols.shift();
+          sellVols.shift();
+          spreads.shift();
+          timestamps.shift();
+        }
+
+        lastBuy = newBuy;
+        lastSell = newSell;
+        lastBuyVol = buyVol;
+        lastSellVol = sellVol;
+
+        if (buyPrices.length >= 3) {
+          let upScore = 0;
+          let downScore = 0;
+
+          for (let i = 1; i < buyPrices.length; i++) {
+            const dt = (timestamps[i] - timestamps[i - 1]) / 1000;
+            const priceUp = buyPrices[i] > buyPrices[i - 1] && sellPrices[i] > sellPrices[i - 1];
+            const priceDown = buyPrices[i] < buyPrices[i - 1] && sellPrices[i] < sellPrices[i - 1];
+            const volBuyChange = buyVols[i] - buyVols[i - 1];
+            const volSellChange = sellVols[i] - sellVols[i - 1];
+            const spreadChange = spreads[i] - spreads[i - 1];
+
+            // spread co lại → tín hiệu thị trường sắp khớp mạnh
+            if (spreadChange < 0) upScore += 0.5;
+            if (spreadChange > 0) downScore += 0.5;
+
+            // Giá + volume logic
+            if (priceUp && volBuyChange > 0) upScore += 2;
+            else if (priceUp) upScore += 1;
+
+            if (priceDown && volSellChange > 0) downScore += 2;
+            else if (priceDown) downScore += 1;
+
+            // Giá không đổi, volume giảm
+            if (!priceUp && !priceDown) {
+              if (volSellChange < 0) upScore += 1;
+              if (volBuyChange < 0) downScore += 1;
+            }
+
+            // Volume ratio
+            const volRatio = (buyVols[i] + 1) / (sellVols[i] + 1);
+            if (volRatio > 1.8) upScore += 1;
+            if (volRatio < 0.55) downScore += 1;
+
+            // Momentum volume: tốc độ giảm nhanh → tín hiệu mạnh hơn
+            const volBuySpeed = volBuyChange / Math.max(dt, 0.1);
+            const volSellSpeed = volSellChange / Math.max(dt, 0.1);
+            if (volSellSpeed < -100) upScore += 1;
+            if (volBuySpeed < -100) downScore += 1;
+          }
+
+          const totalScore = upScore + downScore;
+          const confidence = totalScore > 0 ? Math.min(Math.abs(upScore - downScore) / totalScore, 1) : 0;
+          const trend =
+            upScore > downScore
+              ? confidence > 0.7
+                ? "LONG"
+                : "LONG_WEAK"
+              : downScore > upScore
+              ? confidence > 0.7
+                ? "SHORT"
+                : "SHORT_WEAK"
+              : "NEUTRAL";
+
+          console.log(
+            `📊 Điểm LONG=${upScore.toFixed(1)}, SHORT=${downScore.toFixed(1)}, confidence=${(
+              confidence * 100
+            ).toFixed(0)}%`
+          );
+
+          // Nếu có kết quả rõ ràng thì resolve ngay
+          if (confidence >= 0.6 && trend !== "NEUTRAL") {
+            clearInterval(interval);
+            console.log(`✅ Kết luận: ${trend} (${(confidence * 100).toFixed(0)}%)`);
+            resolve(trend.includes("LONG") ? "LONG" : "SHORT");
+          }
+        }
+      }
+
+      // timeout
       if (now - start > timeout) {
         clearInterval(interval);
         const fallback = Math.random() > 0.5 ? "LONG" : "SHORT";
@@ -291,40 +404,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         resolve(fallback);
         return;
       }
-
-      if (newBuy !== null && newSell !== null && (newBuy !== lastBuy || newSell !== lastSell)) {
-        buyPrices.push(newBuy);
-        sellPrices.push(newSell);
-        if (buyPrices.length > 5) buyPrices.shift();
-        if (sellPrices.length > 5) sellPrices.shift();
-
-        lastBuy = newBuy;
-        lastSell = newSell;
-
-        console.log(`💹 Cập nhật giá: BUY=${newBuy}, SELL=${newSell}`);
-
-        if (buyPrices.length >= 5) {
-          let upCount = 0;
-          let downCount = 0;
-          for (let i = 1; i < buyPrices.length; i++) {
-            if (buyPrices[i] > buyPrices[i - 1] && sellPrices[i] > sellPrices[i - 1]) upCount++;
-            else if (buyPrices[i] < buyPrices[i - 1] && sellPrices[i] < sellPrices[i - 1]) downCount++;
-          }
-
-          if (upCount >= 3) {
-            clearInterval(interval);
-            console.log("✅ Kết quả phân tích: LONG");
-            resolve("LONG");
-          } else if (downCount >= 3) {
-            clearInterval(interval);
-            console.log("✅ Kết quả phân tích: SHORT");
-            resolve("SHORT");
-          }
-        }
-      }
-    }, 100);
+    }, 120);
   });
 }
+
 
 
     /*********************** BƯỚC 1: FLASH CLOSE (nếu có) ***********************/

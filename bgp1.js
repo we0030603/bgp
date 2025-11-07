@@ -498,10 +498,11 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
               waitFor("//span[text()='All' or text()='Tất cả']"),
               waitFor("//button[text()='Confirm' or text()='Xác nhận']")
             ]);
+			await randomSleep(1000, 1500);
             await safeClick(allBtn);
             await safeClick(confirmBtn);
             await waitFor("//span[text()='Successful transfer' or text()='Chuyển khoản thành công']", 10000);
-            await randomSleep(1500, 2500);
+            await randomSleep(1000, 1500);
             console.log("✅ Transfer thành công.");
           } else {
             console.log("— Không cần transfer (không phải zero balance).");

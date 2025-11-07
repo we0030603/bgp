@@ -250,29 +250,29 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
     }));
   };
 
-  // Chờ element theo XPath
-	const waitFor = async (xpath, timeout = 10000) => {
+	// Chờ element xuất hiện (tích hợp kiểm tra token stop)
+	const waitFor = (xpath, timeout = 10000) => new Promise((resolve, reject) => {
 	  const token = window.__bgpRunner?.token;
 	  const start = Date.now();
 	
-	  while (Date.now() - start < timeout) {
+	  (function check() {
+	    // Nếu token thay đổi hoặc runner dừng, reject ngay
 	    if (!window.__bgpRunner?.running || window.__bgpRunner?.token !== token) {
-	      throw "STOP_SIGNAL"; // 🧠 Dừng ngay khi script bị stop/restart
+	      return reject("STOP_SIGNAL");
 	    }
 	
-	    const el = document.evaluate(
-	      xpath, document, null,
-	      XPathResult.FIRST_ORDERED_NODE_TYPE, null
-	    ).singleNodeValue;
+	    const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+	    if (el) return resolve(el);
 	
-	    if (el) return el;
+	    if (Date.now() - start > timeout) {
+	      console.warn("⏰ Timeout:", xpath);
+	      return reject("TIMEOUT");
+	    }
 	
-	    await sleep(10); // 💤 có thể chèn logic dừng vào sleep()
-	  }
-	
-	  console.warn("⏰ Timeout:", xpath);
-	  throw "TIMEOUT";
-	};
+	    setTimeout(check, 200); // kiểm tra lại sau 200ms
+	  })();
+	});
+
 
   // Chờ element và click an toàn
   const clickXpath = async (xpath, extraDelay = false) => {

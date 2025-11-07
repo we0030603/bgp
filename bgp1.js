@@ -267,7 +267,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
 	
 	    if (el) return el;
 	
-	    await sleep(200); // 💤 có thể chèn logic dừng vào sleep()
+	    await sleep(10); // 💤 có thể chèn logic dừng vào sleep()
 	  }
 	
 	  console.warn("⏰ Timeout:", xpath);

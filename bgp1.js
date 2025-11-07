@@ -656,12 +656,12 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         await safeClick(confirmBtn);
 
         try {
-          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 5000);
+          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng')]/../span[text()='0.0000 USDT']", 5000);
           await randomSleep(800, 1500);
           
         } catch {
         }
-		  await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 3000);
+		  await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng')]/../span[text()='0.0000 USDT']", 3000);
 		  alert("DONE ✅");
       }
     } catch (e) {

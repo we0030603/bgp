@@ -244,11 +244,12 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
 
   // Chờ element theo XPath
   const waitFor = (xpath, timeout = 10000) => new Promise((resolve, reject) => {
-	await sleep(20)
+	
     const start = Date.now();
     (function check() {
       const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
       if (el) return resolve(el);
+		await sleep(20)
       if (Date.now() - start > timeout) {
         console.warn("⏰ Timeout:", xpath);
         return reject();

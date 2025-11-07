@@ -1,18 +1,26 @@
-// === Guard chống chạy chồng ===
+// === BGP Runner với Token kiểm soát ===
 if (window.__bgpRunner && window.__bgpRunner.stop) {
   console.warn("⛔ Đang có phiên bản cũ — dừng lại trước khi khởi chạy mới...");
   window.__bgpRunner.stop("restart");
   delete window.__bgpRunner;
 }
 
-// tạo controller lưu trạng thái
+const __bgpToken = Math.random().toString(36).slice(2);
+
 window.__bgpRunner = {
   running: true,
+  token: __bgpToken,
   stopReason: null,
   stop: (reason = "manual") => {
+    if (!window.__bgpRunner.running) return;
     window.__bgpRunner.running = false;
     window.__bgpRunner.stopReason = reason;
     console.warn("🛑 Script BGP dừng:", reason);
+  },
+  checkAlive: () => {
+    if (!window.__bgpRunner.running || window.__bgpRunner.token !== __bgpToken) {
+      throw new Error("STOP_SIGNAL");
+    }
   }
 };
 
@@ -32,9 +40,24 @@ window.__bgpRunner = {
     console.log("🟢 Chosen target volume (USDT):", chosenVol);
     /***************************************************************************/
 	/************** 🔧 HÀM TIỆN ÍCH **************/
-	const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const randomSleep = (min = 100, max = 800) => sleep(Math.floor(Math.random() * (max - min + 1)) + min);
-// test purge
+	// Sleep có token kiểm soát
+	const sleep = (ms) => new Promise((resolve, reject) => {
+  		const token = window.__bgpRunner?.token;
+  		const timer = setTimeout(() => {
+    	if (window.__bgpRunner?.token !== token || !window.__bgpRunner?.running) {
+      		return reject("STOP_SIGNAL");
+    }
+    resolve();
+  }, ms);
+});
+
+// Random sleep có kiểm tra token
+const randomSleep = async (min = 100, max = 800) => {
+  window.__bgpRunner?.checkAlive?.();
+  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
+  await sleep(ms);
+  window.__bgpRunner?.checkAlive?.();
+};
 
 function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, minLev, maxLev, options) {
   // --- helpers ---
@@ -221,6 +244,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
 
   // Chờ element theo XPath
   const waitFor = (xpath, timeout = 10000) => new Promise((resolve, reject) => {
+	await sleep(20)
     const start = Date.now();
     (function check() {
       const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;

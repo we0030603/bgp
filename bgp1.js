@@ -227,7 +227,6 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       if (el) return resolve(el);
       if (Date.now() - start > timeout) {
         console.warn("⏰ Timeout:", xpath);
-        location.reload();
         return reject();
       }
       setTimeout(check, 200);

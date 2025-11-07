@@ -1,10 +1,29 @@
+// === Guard chống chạy chồng ===
+if (window.__bgpRunner && window.__bgpRunner.stop) {
+  console.warn("⛔ Đang có phiên bản cũ — dừng lại trước khi khởi chạy mới...");
+  window.__bgpRunner.stop("restart");
+  delete window.__bgpRunner;
+}
+
+// tạo controller lưu trạng thái
+window.__bgpRunner = {
+  running: true,
+  stopReason: null,
+  stop: (reason = "manual") => {
+    window.__bgpRunner.running = false;
+    window.__bgpRunner.stopReason = reason;
+    console.warn("🛑 Script BGP dừng:", reason);
+  }
+};
+
+
 (async () => {
   try {
     /************************* CẤU HÌNH (chỉnh nếu cần) *************************/
     const minLeverage = 50; // thay đổi nếu cần
     const maxLeverage = 100; // thay đổi nếu cần
     const minVol = 20300; // USDT, khối lượng tối thiểu (ví dụ)
-    const maxVol = 22000; // USDT, khối lượng tối đa (ví dụ)
+    const maxVol = 21500; // USDT, khối lượng tối đa (ví dụ)
     const feeBuffer = 0.936; // truyền vào calc nếu muốn
     const balanceXPath = "//span[contains(text(),'Available')]/../span[contains(text(),' USDT')]";
     const priceXPath = "//div[contains(@class,'CurrentPriceDisplay')]/div/span";
@@ -15,7 +34,7 @@
 	/************** 🔧 HÀM TIỆN ÍCH **************/
 	const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const randomSleep = (min = 100, max = 800) => sleep(Math.floor(Math.random() * (max - min + 1)) + min);
-
+// test purge
 
 function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, minLev, maxLev, options) {
   // --- helpers ---
@@ -26,6 +45,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       return null;
     }
   }
+	
   function parseNumberText(s) {
     if (s == null) return NaN;
     return parseFloat(String(s).replace(/,/g, '').replace(/[^\d.\-]/g, '').trim());
@@ -139,7 +159,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
         movementY: Math.floor(Math.random() * 5),
         view: window
       }));
-      await randomSleep(30, 120);
+      await randomSleep(20, 40);
     }
   };
 
@@ -173,7 +193,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       }
       el.dispatchEvent(new KeyboardEvent("keydown", { key: char, bubbles: true }));
       el.dispatchEvent(new KeyboardEvent("keyup", { key: char, bubbles: true }));
-      await randomSleep(100, 200);
+      await randomSleep(50, 120);
     }
 
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -183,7 +203,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
   // Click an toàn (rê chuột trước khi click)
   const safeClick = async (el, extraDelay = false) => {
     if (!el) return;
-    await randomSleep(200, 600);
+    await randomSleep(100, 250);
     if (extraDelay) await randomSleep(2000, 3000);
     await simulateMouseMove(el, 6);
     const rect = el.getBoundingClientRect();
@@ -222,7 +242,7 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
   };
     const clickXpath1 = async (xpath, extraDelay = false) => {
     const el1 = await waitFor(xpath);
-    await randomSleep(100, 200);
+    await randomSleep(50, 100);
     await safeClick(el1);
   };
   
@@ -251,12 +271,13 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
       return Math.floor(Math.random() * (max - min + 1)) + min;
     }
 
-    // helper: phân tích hướng thị trường 1 lần — trả về "LONG" | "SHORT" | "NEUTRAL"
-    // logic: lấy 5 mẫu liên tiếp cách nhau ~150ms, so sánh xu hướng như bạn mô tả
+
     // helper: phân tích hướng thị trường 1 lần — trả về "LONG" | "SHORT" | "NEUTRAL"
 async function analyzeMarketDirectionOnce(timeout = 15000) {
   const buyXPath = '(//li[contains(@class, "contentTradeBuy")])[1]';
   const sellXPath = '(//li[contains(@class, "contentTradeSell")])[last()]';
+  const buyVolXPath = '(//li[contains(@class, "contentTradeBuy")]/../li[3])[1]';
+  const sellVolXPath = '(//li[contains(@class, "contentTradeSell")]/../li[3])[last()]';
 
   function getXPathNumber(xpath) {
     try {
@@ -270,20 +291,132 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
     }
   }
 
-  return new Promise((resolve) => {
-    console.log("🔍 Bắt đầu phân tích hướng thị trường...");
-    const buyPrices = [];
-    const sellPrices = [];
-    let lastBuy = getXPathNumber(buyXPath);
-    let lastSell = getXPathNumber(sellXPath);
-    const start = Date.now();
+  // EMA smoothing cho volume
+  function ema(prevEma, current, alpha = 0.5) {
+    if (prevEma === null || prevEma === undefined) return current;
+    return alpha * current + (1 - alpha) * prevEma;
+  }
 
+  const start = performance.now();
+  let lastBuy = getXPathNumber(buyXPath);
+  let lastSell = getXPathNumber(sellXPath);
+  let lastBuyVol = getXPathNumber(buyVolXPath);
+  let lastSellVol = getXPathNumber(sellVolXPath);
+  let emaBuyVol = lastBuyVol;
+  let emaSellVol = lastSellVol;
+
+  const buyPrices = [], sellPrices = [], buyVols = [], sellVols = [], spreads = [], timestamps = [];
+
+  return new Promise((resolve) => {
+    console.log("🔍 Bắt đầu phân tích hướng thị trường — bản Pro nhẹ");
     const interval = setInterval(() => {
       const newBuy = getXPathNumber(buyXPath);
       const newSell = getXPathNumber(sellXPath);
-      const now = Date.now();
+      const buyVol = getXPathNumber(buyVolXPath);
+      const sellVol = getXPathNumber(sellVolXPath);
+      const now = performance.now();
 
-      // kiểm tra timeout
+      if (!newBuy || !newSell || !buyVol || !sellVol) return;
+
+      const spread = newSell - newBuy;
+      const priceChanged = newBuy !== lastBuy || newSell !== lastSell;
+      const volumeChanged = buyVol !== lastBuyVol || sellVol !== lastSellVol;
+
+      if (priceChanged || volumeChanged) {
+        emaBuyVol = ema(emaBuyVol, buyVol);
+        emaSellVol = ema(emaSellVol, sellVol);
+
+        buyPrices.push(newBuy);
+        sellPrices.push(newSell);
+        buyVols.push(emaBuyVol);
+        sellVols.push(emaSellVol);
+        spreads.push(spread);
+        timestamps.push(now);
+
+        if (buyPrices.length > 6) {
+          buyPrices.shift();
+          sellPrices.shift();
+          buyVols.shift();
+          sellVols.shift();
+          spreads.shift();
+          timestamps.shift();
+        }
+
+        lastBuy = newBuy;
+        lastSell = newSell;
+        lastBuyVol = buyVol;
+        lastSellVol = sellVol;
+
+        if (buyPrices.length >= 3) {
+          let upScore = 0;
+          let downScore = 0;
+
+          for (let i = 1; i < buyPrices.length; i++) {
+            const dt = (timestamps[i] - timestamps[i - 1]) / 1000;
+            const priceUp = buyPrices[i] > buyPrices[i - 1] && sellPrices[i] > sellPrices[i - 1];
+            const priceDown = buyPrices[i] < buyPrices[i - 1] && sellPrices[i] < sellPrices[i - 1];
+            const volBuyChange = buyVols[i] - buyVols[i - 1];
+            const volSellChange = sellVols[i] - sellVols[i - 1];
+            const spreadChange = spreads[i] - spreads[i - 1];
+
+            // spread co lại → tín hiệu thị trường sắp khớp mạnh
+            if (spreadChange < 0) upScore += 0.5;
+            if (spreadChange > 0) downScore += 0.5;
+
+            // Giá + volume logic
+            if (priceUp && volBuyChange > 0) upScore += 2;
+            else if (priceUp) upScore += 1;
+
+            if (priceDown && volSellChange > 0) downScore += 2;
+            else if (priceDown) downScore += 1;
+
+            // Giá không đổi, volume giảm
+            if (!priceUp && !priceDown) {
+              if (volSellChange < 0) upScore += 1;
+              if (volBuyChange < 0) downScore += 1;
+            }
+
+            // Volume ratio
+            const volRatio = (buyVols[i] + 1) / (sellVols[i] + 1);
+            if (volRatio > 1.8) upScore += 1;
+            if (volRatio < 0.55) downScore += 1;
+
+            // Momentum volume: tốc độ giảm nhanh → tín hiệu mạnh hơn
+            const volBuySpeed = volBuyChange / Math.max(dt, 0.1);
+            const volSellSpeed = volSellChange / Math.max(dt, 0.1);
+            if (volSellSpeed < -100) upScore += 1;
+            if (volBuySpeed < -100) downScore += 1;
+          }
+
+          const totalScore = upScore + downScore;
+          const confidence = totalScore > 0 ? Math.min(Math.abs(upScore - downScore) / totalScore, 1) : 0;
+          const trend =
+            upScore > downScore
+              ? confidence > 0.7
+                ? "LONG"
+                : "LONG_WEAK"
+              : downScore > upScore
+              ? confidence > 0.7
+                ? "SHORT"
+                : "SHORT_WEAK"
+              : "NEUTRAL";
+
+          console.log(
+            `📊 Điểm LONG=${upScore.toFixed(1)}, SHORT=${downScore.toFixed(1)}, confidence=${(
+              confidence * 100
+            ).toFixed(0)}%`
+          );
+
+          // Nếu có kết quả rõ ràng thì resolve ngay
+          if (confidence >= 0.6 && trend !== "NEUTRAL") {
+            clearInterval(interval);
+            console.log(`✅ Kết luận: ${trend} (${(confidence * 100).toFixed(0)}%)`);
+            resolve(trend.includes("LONG") ? "LONG" : "SHORT");
+          }
+        }
+      }
+
+      // timeout
       if (now - start > timeout) {
         clearInterval(interval);
         const fallback = Math.random() > 0.5 ? "LONG" : "SHORT";
@@ -291,40 +424,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         resolve(fallback);
         return;
       }
-
-      if (newBuy !== null && newSell !== null && (newBuy !== lastBuy || newSell !== lastSell)) {
-        buyPrices.push(newBuy);
-        sellPrices.push(newSell);
-        if (buyPrices.length > 5) buyPrices.shift();
-        if (sellPrices.length > 5) sellPrices.shift();
-
-        lastBuy = newBuy;
-        lastSell = newSell;
-
-        console.log(`💹 Cập nhật giá: BUY=${newBuy}, SELL=${newSell}`);
-
-        if (buyPrices.length >= 5) {
-          let upCount = 0;
-          let downCount = 0;
-          for (let i = 1; i < buyPrices.length; i++) {
-            if (buyPrices[i] > buyPrices[i - 1] && sellPrices[i] > sellPrices[i - 1]) upCount++;
-            else if (buyPrices[i] < buyPrices[i - 1] && sellPrices[i] < sellPrices[i - 1]) downCount++;
-          }
-
-          if (upCount >= 3) {
-            clearInterval(interval);
-            console.log("✅ Kết quả phân tích: LONG");
-            resolve("LONG");
-          } else if (downCount >= 3) {
-            clearInterval(interval);
-            console.log("✅ Kết quả phân tích: SHORT");
-            resolve("SHORT");
-          }
-        }
-      }
-    }, 100);
+    }, 120);
   });
 }
+
 
 
     /*********************** BƯỚC 1: FLASH CLOSE (nếu có) ***********************/
@@ -352,6 +455,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
     /*********************** BƯỚC 2+3: LẶP KIỂM TRA VÀ MỞ LỆNH ****************/
     let loopCount = 0;
     while (true) {
+	    if (!window.__bgpRunner?.running) {
+        console.warn("⏹ Phát hiện lệnh stop — thoát vòng lặp.");
+        break;
+      }
       loopCount++;
       try {
         console.log(`\n🔁 Vòng lặp kiểm tra #${loopCount} — mở Position history...`);
@@ -445,7 +552,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
             try {
               await waitFor("//span[text()='Editing successful']|//span[text()='Chỉnh sửa thành công']", 5000);
             } catch {}
-            await randomSleep(300, 500);
+            await randomSleep(800, 1200);
           }
         } catch (e) {
           console.error("❌ Lỗi khi set leverage:", e);
@@ -457,6 +564,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
           console.log("⌨️ Nhập BTC amount vào input...");
           await waitFor(amountInputXPath);
           await setValue(amountInputXPath, btcAmount.toString());
+          await randomSleep(500, 900);
         } catch (e) {
           console.error("❌ Lỗi nhập amount:", e);
         }
@@ -464,7 +572,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
 
         /*************** PHÂN TÍCH HƯỚNG (LONG / SHORT) ***************/
         console.log("🔎 Phân tích hướng thị trường...");
-        const direction = await analyzeMarketDirectionOnce(30000);
+        const direction = await analyzeMarketDirectionOnce(15000);
         console.log("📡 Kết luận phân tích:", direction);
 
 
@@ -487,9 +595,9 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
           if (confirmOrFlash && ["Confirm", "Xác nhận"].includes(confirmOrFlash.textContent.trim())) {
             console.log("🟢 Cần Confirm — bật setting trước khi Confirm");
             // bật setting
-            await clickXpath1("//p[@id='open-setting']/../../span/input");
-            await randomSleep(200, 500);
-            await clickXpath1("//button[text()='Confirm' or text()='Xác nhận']");
+            await clickXpath("//p[@id='open-setting']/../../span/input");
+            await randomSleep(500, 1000);
+            await clickXpath("//button[text()='Confirm' or text()='Xác nhận']");
             await waitFor("//span[text()='Flash close' or text()='Đóng nhanh']", 5000);
             console.log("✅ Đã mở lệnh — Flash close hiện");
           } else {
@@ -539,9 +647,7 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         if (transferBtn) await safeClick(transferBtn);
 		await randomSleep(800, 1200);
         const allBtn = await waitFor("//span[text()='All'  or text()='Tất cả']");
-        await randomSleep(800, 1200);
         const icon = await waitFor("//div[text()='Transfer' or text()='Chuyển khoản']/../div/div/div/i");
-        await randomSleep(800, 1200);
         const confirmBtn = await waitFor("//button[text()='Confirm' or text()='Xác nhận']");
 
         await safeClick(icon);
@@ -550,11 +656,12 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         await safeClick(confirmBtn);
 
         try {
-          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 2000);
+          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 5000);
           await randomSleep(800, 1500);
           
         } catch {
         }
+		  await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 3000);
 		  alert("DONE ✅");
       }
     } catch (e) {
@@ -565,4 +672,8 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
   } catch (outerErr) {
     console.error("❌ Script fatal error:", outerErr);
   }
+	  // === Cleanup sau khi thoát ===
+  console.log("🧹 Dọn dẹp BGP runner...");
+  window.__bgpRunner.running = false;
+  delete window.__bgpRunner;
 })();

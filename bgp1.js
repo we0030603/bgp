@@ -40,24 +40,32 @@ window.__bgpRunner = {
     console.log("🟢 Chosen target volume (USDT):", chosenVol);
     /***************************************************************************/
 	/************** 🔧 HÀM TIỆN ÍCH **************/
-	// Sleep có token kiểm soát
+	// Sleep có kiểm tra token stop
 	const sleep = (ms) => new Promise((resolve, reject) => {
-  		const token = window.__bgpRunner?.token;
-  		const timer = setTimeout(() => {
-    	if (window.__bgpRunner?.token !== token || !window.__bgpRunner?.running) {
-      		return reject("STOP_SIGNAL");
-    }
-    resolve();
-  }, ms);
-});
-
-// Random sleep có kiểm tra token
-const randomSleep = async (min = 100, max = 800) => {
-  window.__bgpRunner?.checkAlive?.();
-  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
-  await sleep(ms);
-  window.__bgpRunner?.checkAlive?.();
-};
+	  const token = window.__bgpRunner?.token;
+	  const start = Date.now();
+	
+	  const tick = () => {
+	    // nếu runner bị dừng giữa chừng
+	    if (!window.__bgpRunner?.running || window.__bgpRunner?.token !== token) {
+	      return reject("STOP_SIGNAL");
+	    }
+	
+	    if (Date.now() - start >= ms) {
+	      return resolve();
+	    }
+	
+	    setTimeout(tick, 50); // kiểm tra mỗi 50ms
+	  };
+	
+	  tick();
+	});
+	
+	// Random sleep có token
+	const randomSleep = async (min = 100, max = 800) => {
+	  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
+	  await sleep(ms);
+	};
 
 function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, minLev, maxLev, options) {
   // --- helpers ---

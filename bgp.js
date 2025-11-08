@@ -1,3 +1,30 @@
+// === BGP Runner với Token kiểm soát ===
+if (window.__bgpRunner && window.__bgpRunner.stop) {
+  console.warn("⛔ Đang có phiên bản cũ — dừng lại trước khi khởi chạy mới...");
+  window.__bgpRunner.stop("restart");
+  delete window.__bgpRunner;
+}
+
+const __bgpToken = Math.random().toString(36).slice(2);
+
+window.__bgpRunner = {
+  running: true,
+  token: __bgpToken,
+  stopReason: null,
+  stop: (reason = "manual") => {
+    if (!window.__bgpRunner.running) return;
+    window.__bgpRunner.running = false;
+    window.__bgpRunner.stopReason = reason;
+    console.warn("🛑 Script BGP dừng:", reason);
+  },
+  checkAlive: () => {
+    if (!window.__bgpRunner.running || window.__bgpRunner.token !== __bgpToken) {
+      throw new Error("STOP_SIGNAL");
+    }
+  }
+};
+
+
 (async () => {
   try {
     /************************* CẤU HÌNH (chỉnh nếu cần) *************************/
@@ -13,9 +40,32 @@
     console.log("🟢 Chosen target volume (USDT):", chosenVol);
     /***************************************************************************/
 	/************** 🔧 HÀM TIỆN ÍCH **************/
-	const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  const randomSleep = (min = 100, max = 800) => sleep(Math.floor(Math.random() * (max - min + 1)) + min);
-// test purge
+	// Sleep có kiểm tra token stop
+	const sleep = (ms) => new Promise((resolve, reject) => {
+	  const token = window.__bgpRunner?.token;
+	  const start = Date.now();
+	
+	  const tick = () => {
+	    // nếu runner bị dừng giữa chừng
+	    if (!window.__bgpRunner?.running || window.__bgpRunner?.token !== token) {
+	      return reject("STOP_SIGNAL");
+	    }
+	
+	    if (Date.now() - start >= ms) {
+	      return resolve();
+	    }
+	
+	    setTimeout(tick, 50); // kiểm tra mỗi 50ms
+	  };
+	
+	  tick();
+	});
+	
+	// Random sleep có token
+	const randomSleep = async (min = 100, max = 800) => {
+	  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
+	  await sleep(ms);
+	};
 
 function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, minLev, maxLev, options) {
   // --- helpers ---
@@ -200,20 +250,29 @@ function calcBTCFutureVolumeWithTarget(totalVolume, balanceXPath, priceXPath, mi
     }));
   };
 
-  // Chờ element theo XPath
-  const waitFor = (xpath, timeout = 10000) => new Promise((resolve, reject) => {
-    const start = Date.now();
-    (function check() {
-      const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-      if (el) return resolve(el);
-      if (Date.now() - start > timeout) {
-        console.warn("⏰ Timeout:", xpath);
-        location.reload();
-        return reject();
-      }
-      setTimeout(check, 200);
-    })();
-  });
+	// Chờ element xuất hiện (tích hợp kiểm tra token stop)
+	const waitFor = (xpath, timeout = 10000) => new Promise((resolve, reject) => {
+	  const token = window.__bgpRunner?.token;
+	  const start = Date.now();
+	
+	  (function check() {
+	    // Nếu token thay đổi hoặc runner dừng, reject ngay
+	    if (!window.__bgpRunner?.running || window.__bgpRunner?.token !== token) {
+	      return reject("STOP_SIGNAL");
+	    }
+	
+	    const el = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+	    if (el) return resolve(el);
+	
+	    if (Date.now() - start > timeout) {
+	      console.warn("⏰ Timeout:", xpath);
+	      return reject("TIMEOUT");
+	    }
+	
+	    setTimeout(check, 200); // kiểm tra lại sau 200ms
+	  })();
+	});
+
 
   // Chờ element và click an toàn
   const clickXpath = async (xpath, extraDelay = false) => {
@@ -436,6 +495,10 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
     /*********************** BƯỚC 2+3: LẶP KIỂM TRA VÀ MỞ LỆNH ****************/
     let loopCount = 0;
     while (true) {
+	    if (!window.__bgpRunner?.running) {
+        console.warn("⏹ Phát hiện lệnh stop — thoát vòng lặp.");
+        break;
+      }
       loopCount++;
       try {
         console.log(`\n🔁 Vòng lặp kiểm tra #${loopCount} — mở Position history...`);
@@ -475,10 +538,11 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
               waitFor("//span[text()='All' or text()='Tất cả']"),
               waitFor("//button[text()='Confirm' or text()='Xác nhận']")
             ]);
+			await randomSleep(1000, 1500);
             await safeClick(allBtn);
             await safeClick(confirmBtn);
             await waitFor("//span[text()='Successful transfer' or text()='Chuyển khoản thành công']", 10000);
-            await randomSleep(1500, 2500);
+            await randomSleep(1000, 1500);
             console.log("✅ Transfer thành công.");
           } else {
             console.log("— Không cần transfer (không phải zero balance).");
@@ -633,12 +697,12 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
         await safeClick(confirmBtn);
 
         try {
-          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 5000);
+          await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng')]/../span[text()='0.0000 USDT']", 5000);
           await randomSleep(800, 1500);
           
         } catch {
         }
-		  await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng'))]/../span[text()='0.0000 USDT']", 3000);
+		  await waitFor("//span[contains(text(),'Available') or contains(text(),'Khả dụng')]/../span[text()='0.0000 USDT']", 3000);
 		  alert("DONE ✅");
       }
     } catch (e) {
@@ -649,4 +713,8 @@ async function analyzeMarketDirectionOnce(timeout = 15000) {
   } catch (outerErr) {
     console.error("❌ Script fatal error:", outerErr);
   }
+	  // === Cleanup sau khi thoát ===
+  console.log("🧹 Dọn dẹp BGP runner...");
+  window.__bgpRunner.running = false;
+  delete window.__bgpRunner;
 })();
